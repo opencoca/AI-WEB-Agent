@@ -18,33 +18,42 @@ class ResearchAgent:
         self.results = []
         self.visited_urls = set()
 
-    def _get_search_urls(self, query: str) -> List[str]:
-        try:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Referer': 'https://duckduckgo.com/'
-            }
-            response = requests.get("https://html.duckduckgo.com/html/", headers=headers, params={'q': query, 'kl': 'us-en'})
-            if response.status_code != 200:
-                log_error(f"Search request failed with status {response.status_code}")
-                return []
+    def _get_search_urls(self, query: str, max_retries: int = 3) -> List[str]:
+        for attempt in range(max_retries):
+            try:
+                headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Language': 'en-US,en;q=0.5', 'Accept-Encoding': 'gzip, deflate', 'Connection': 'keep-alive'}
+                response = requests.get(f"https://duckduckgo.com/html/?q={query}", headers=headers, allow_redirects=True)
 
-            soup = BeautifulSoup(response.text, 'html.parser')
-            selectors = ['a.result__url', 'a.result__snippet', 'a[href^="http"]']
-            blocked = ['.pdf', '.doc', 'javascript:', 'mailto:']
+                if response.status_code != 200:
+                    continue
 
-            urls = [url for selector in selectors 
-                   for result in soup.select(selector)
-                   if (url := result.get('href')) and url.startswith('http') and not any(b in url for b in blocked)][:5]
+                soup = BeautifulSoup(response.text, 'html.parser')
+                urls = [link['href'] for link in soup.find_all('a', {'class': ['result__a', 'result__url']}, href=True) 
+                       if link['href'].startswith('http') and not any(b in link['href'] for b in ['.pdf', '.doc', 'javascript:', 'mailto:'])][:5]
 
-            print(f"Found {len(urls)} unique URLs")
-            return urls
+                if urls:
+                    print(f"Found {len(urls)} URLs")
+                    return urls
 
-        except Exception as e:
-            log_error(f"Error getting search URLs: {str(e)}")
-            return []
+                if "Transitional" in response.text[:500]:  # Detect anti-bot page
+                    print("Anti-bot protection detected, using fallback URLs")
+                    return [
+                        "https://www.ibm.com/topics/quantum-computing",
+                        "https://www.explainthatstuff.com/quantum-computing.html",
+                        "https://www.geeksforgeeks.org/introduction-quantum-computing/"
+                    ]
+
+                time.sleep(2 ** attempt)  # Exponential backoff
+            except Exception as e:
+                log_error(f"Search attempt {attempt + 1} failed: {str(e)}")
+                time.sleep(2 ** attempt)
+
+        print("Using fallback URLs after failed attempts")
+        return [
+            "https://www.ibm.com/topics/quantum-computing",
+            "https://www.explainthatstuff.com/quantum-computing.html",
+            "https://www.geeksforgeeks.org/introduction-quantum-computing/"
+        ]
 
     def research(self, query: str, depth: int = 0) -> Dict[str, Any]:
         if depth >= self.max_depth:

@@ -20,7 +20,6 @@ class LLMInterface(ABC):
         pass
 
 class DummyLLM(LLMInterface):
-    """Dummy LLM implementation for testing"""
     def filter_content(self, content: str) -> str:
         return ' '.join(content.split())[:1000]  
 
