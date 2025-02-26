@@ -187,7 +187,10 @@ class ResearchAgent:
 
 def run_test_query(query: str):
     print(f"\nRunning test query: {query}")
-    agent = ResearchAgent(max_depth=2)
+    # Initialize with proxy handler
+    from proxy_handler import ProxyHandler
+    proxy_handler = ProxyHandler()
+    agent = ResearchAgent(max_depth=2, proxy_handler=proxy_handler)
 
     print("\nTesting fallback URLs extraction:")
     for url in agent._get_fallback_urls():
@@ -210,7 +213,10 @@ def main():
             print("Error: Test query required")
             sys.exit(1)
 
-    agent = ResearchAgent()
+    # Initialize with proxy handler for interactive mode
+    from proxy_handler import ProxyHandler
+    proxy_handler = ProxyHandler()
+    agent = ResearchAgent(proxy_handler=proxy_handler)
     while True:
         query = input("\nEnter research query (or 'quit' to exit): ").strip()
         if query.lower() == 'quit':
